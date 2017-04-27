@@ -1,11 +1,6 @@
-/*********
-  Rui Santos
-  Complete project details at http://randomnerdtutorials.com
-  Arduino IDE example: Examples > Arduino OTA > BasicOTA.ino
-*********/
-
 #include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
+#include <ESP8266WebServer.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
 #include <Wire.h>  
@@ -15,15 +10,27 @@
 SSD1306  display(0x3c, 0, 2); // Initialise the OLED display using Wire library
 Adafruit_ADS1115 ads1115(0x48);  // construct an ads1115 at address 0x48
 float Voltage = 0.0;
+float Temp1 = 0.0;
+float Temp2 = 0.0;
+
+float m=203.04;
+float c=3707.478;
+
+
 
 // Replace with your network credentials
 const char* ssid = "hoving";
 const char* password = "groningen";
 
+ESP8266WebServer server(80);
+String webPage = "";
 
 void setup() {
   Serial.begin(9600);
   delay(1000);
+  webPage += "<h1>ESP8266 Web Server</h1><p>Coolerbox Temp</p>";
+  
+  
   
   display.init(); // Initialising the UI will init the display too.
 //  display.flipScreenVertically();
@@ -71,31 +78,57 @@ void setup() {
   Serial.print("IP address: "); Serial.println(WiFi.localIP());
   drawIPAddress();
   ads1115.begin();
+
+  server.on("/", [](){
+     //This is executed when you go to the IP address on the display
+     char tempChar1[20] = "";
+     dtostrf(Temp1, 3, 1, tempChar1);
+     char tempChar2[20] = "";
+     dtostrf(Temp2, 3, 1, tempChar2);
+     
+     server.send(200, "text/html", webPage + "<p><br>Temp1:" + tempChar1  + "<br>Temp2:" + tempChar2 + "</p>");
+  });
+
+  server.begin();
+  Serial.println("HTTP server started");
 }
 
 void loop() {
   ArduinoOTA.handle();
+  server.handleClient();
   ESP.wdtDisable();
-   display.clear();
+  display.clear();
   drawVoltage();
   drawIPAddress();
-   display.display();
+  display.display();
 }
 
 void drawVoltage()
 {
     int16_t adc0;  // we read from the ADC, we have a sixteen bit integer as a result
-
+    int16_t adc1; 
     adc0 = ads1115.readADC_SingleEnded(0);
+    adc1 = ads1115.readADC_SingleEnded(1);
     Voltage = (adc0 * 0.1875)/1000;
     char result[20] = "";
-    dtostrf(Voltage, 3, 1, result);
-   
+    dtostrf(adc0, 3, 1, result);
+
+    Temp1 = (adc0-c)/m;  //x=(y-c)/m
+    char tempChar[20] = "";
+    Temp2 = (adc1-c)/m;  //x=(y-c)/m
+    
+    
     display.setTextAlignment(TEXT_ALIGN_LEFT);
     display.setFont(ArialMT_Plain_16);
-    display.drawString(0, 10, "Voltage:");
-    display.drawString(70, 10, result);
-  //  Serial.print("Voltage: "); Serial.println(result);
+    dtostrf(Temp1, 3, 1, tempChar);
+    display.drawString(0, 10, "Temp1:");
+    display.drawString(70, 10, tempChar);
+    dtostrf(Temp2, 3, 1, tempChar);
+    display.drawString(0, 26, "Temp2:");
+    display.drawString(70, 26, tempChar);
+    
+   // Serial.print("adc0: "); Serial.println(result);
+     
    
     
 }
@@ -117,8 +150,9 @@ void drawHelloWorld()
     display.setFont(ArialMT_Plain_16);
     display.drawString(0, 10, "Booting");
     display.setFont(ArialMT_Plain_24);
-    display.drawString(0, 26, "Hello Lucas & Leo");
+   // display.drawString(0, 26, "Hello Lucas & Leo");
 }
+
 
 
 
