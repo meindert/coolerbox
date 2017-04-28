@@ -6,6 +6,7 @@
 
 #include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
+#include <ESP8266WebServer.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
 #include <Wire.h>  
@@ -14,10 +15,13 @@
 
 SSD1306  display(0x3c, 0, 2); // Initialise the OLED display using Wire library
 Adafruit_ADS1115 ads1115(0x48);  // construct an ads1115 at address 0x48
+ESP8266WebServer server(80); // Webserver, to watch the temperature from the web on the IP address
+
 float Temp1 = 0.0;
 float Temp2 = 0.0;
 float m=  203.04;
 float c=  3707.48;
+String webPage = "";
 
 
 
@@ -34,8 +38,10 @@ void setup() {
   display.init(); // Initialising the UI will init the display too.
 //  display.flipScreenVertically();
   display.clear();
-  drawHelloWorld(); 
+  drawBootText(); 
   display.display();
+
+  webPage += "<h1>ESP8266 Web Server</h1>";
   
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
@@ -44,15 +50,6 @@ void setup() {
     delay(5000);
     ESP.restart();
   }
-
-  // Port defaults to 8266
-  // ArduinoOTA.setPort(8266);
-
-  // Hostname defaults to esp8266-[ChipID]
-  // ArduinoOTA.setHostname("myesp8266");
-
-  // No authentication by default
-  // ArduinoOTA.setPassword((const char *)"123");
 
   ArduinoOTA.onStart([]() {
     Serial.println("Start");
@@ -77,15 +74,28 @@ void setup() {
   Serial.print("IP address: "); Serial.println(WiFi.localIP());
   drawIPAddress();
   ads1115.begin();
+  
+  server.on("/", [](){
+    //Show the temperatures on a web page
+    char temp1Char[20] = "";
+    char temp2Char[20] = "";
+    dtostrf(Temp1, 3, 1, temp1Char);
+    dtostrf(Temp2, 3, 1, temp2Char);
+    server.send(200, "text/html", webPage + "<br>Temp1: " + temp1Char + "<br>Temp2: " + temp2Char  );
+  });
+  server.begin();
+  Serial.println("HTTP server started");
+  
 }
 
 void loop() {
-  ArduinoOTA.handle();
-  ESP.wdtDisable();
+   ArduinoOTA.handle();
+   ESP.wdtDisable();
    display.clear();
-  drawVoltage();
-  drawIPAddress();
+   drawVoltage();
+   drawIPAddress();
    display.display();
+   server.handleClient();
 }
 
 void drawVoltage()
@@ -101,8 +111,7 @@ void drawVoltage()
     Temp1 = (adc0-c)/m;  //x=(y-c)/m
     char tempChar[20] = "";
     Temp2 = (adc1-c)/m;  //x=(y-c)/m
-    
-    
+
     display.setTextAlignment(TEXT_ALIGN_LEFT);
     display.setFont(ArialMT_Plain_16);
     dtostrf(Temp1, 3, 1, tempChar);
@@ -117,25 +126,25 @@ void drawVoltage()
    
     
 }
+
 void drawIPAddress() 
 {
     display.setTextAlignment(TEXT_ALIGN_LEFT);
     display.setFont(ArialMT_Plain_10);
     display.drawString(0, 50, "IP:");
     display.drawString(30, 50, WiFi.localIP().toString());
-
     display.display();
-    
 }
-void drawHelloWorld() 
+
+void drawBootText() 
 {
     display.setTextAlignment(TEXT_ALIGN_LEFT);
     display.setFont(ArialMT_Plain_10);
-    display.drawString(0, 0, "------");
+   // display.drawString(0, 0, "------");
     display.setFont(ArialMT_Plain_16);
     display.drawString(0, 10, "Booting");
     display.setFont(ArialMT_Plain_24);
-    display.drawString(0, 26, "Hello Lucas & Leo");
+    //display.drawString(0, 26, "Hello Lucas & Leo");
 }
 
 
